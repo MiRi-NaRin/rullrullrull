@@ -1,0 +1,229 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  .rune-app {
+    min-height: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 1rem 3rem;
+  }
+
+  .wheel-wrap {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    margin-bottom: 2rem;
+  }
+
+  #runeCanvas { display: block; border-radius: 50%; }
+
+  .spin-btn {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-border-secondary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .spin-btn:hover { background: var(--color-background-secondary); }
+  .spin-btn:active { transform: translate(-50%,-50%) scale(0.95); }
+  .spin-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .pointer {
+    position: absolute;
+    top: 50%; right: -18px;
+    transform: translateY(-50%);
+    width: 0; height: 0;
+    border-top: 11px solid transparent;
+    border-bottom: 11px solid transparent;
+    border-right: 22px solid var(--color-text-primary);
+    opacity: 0.7;
+  }
+
+  .result-card {
+    width: 100%;
+    max-width: 340px;
+    background: var(--color-background-primary);
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-lg);
+    padding: 1.4rem 1.6rem;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .result-card.show { opacity: 1; transform: translateY(0); }
+
+  .result-symbol { font-size: 46px; line-height: 1; margin-bottom: 10px; text-align: center; }
+  .result-name {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 18px; font-weight: 700;
+    text-align: center;
+    color: var(--color-text-primary);
+    margin-bottom: 4px; letter-spacing: 0.06em;
+  }
+  .result-pronunciation {
+    font-size: 13px; color: var(--color-text-secondary);
+    text-align: center; margin-bottom: 14px; letter-spacing: 0.04em;
+  }
+  .result-divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); margin: 10px 0 14px; }
+  .result-meaning-label {
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.14em; color: var(--color-text-tertiary); margin-bottom: 7px;
+  }
+  .result-meaning { font-size: 14px; color: var(--color-text-primary); line-height: 1.7; }
+  .aett-badge {
+    display: inline-block; margin-top: 12px; font-size: 11px;
+    padding: 3px 10px; border-radius: 99px;
+    border: 0.5px solid var(--color-border-secondary);
+    color: var(--color-text-secondary); letter-spacing: 0.06em;
+  }
+</style>
+
+<div class="rune-app">
+  <h2 class="sr-only">룬 룰렛 — 오늘의 룬을 뽑아보세요</h2>
+
+  <div class="wheel-wrap">
+    <canvas id="runeCanvas" width="300" height="300"></canvas>
+    <div class="pointer"></div>
+    <button class="spin-btn" id="spinBtn" aria-label="룰렛 돌리기">✦</button>
+  </div>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-symbol" id="resSymbol"></div>
+    <div class="result-name" id="resName"></div>
+    <div class="result-pronunciation" id="resPron"></div>
+    <hr class="result-divider">
+    <div class="result-meaning-label">오늘의 메시지</div>
+    <div class="result-meaning" id="resMeaning"></div>
+    <div><span class="aett-badge" id="resAett"></span></div>
+  </div>
+</div>
+
+<script>
+const RUNES = [
+  { symbol:'ᚠ', name:'Fehu', pronunciation:'페후', meaning:'재물과 풍요의 기운이 흐릅니다. 오늘은 새로운 시작과 번영을 위한 씨앗을 뿌리기 좋은 날입니다.', aett:"Freyr's Aett" },
+  { symbol:'ᚢ', name:'Uruz', pronunciation:'우루즈', meaning:'원초적인 힘과 생명력이 당신 안에 있습니다. 도전에 맞서 용기 있게 나아가세요.', aett:"Freyr's Aett" },
+  { symbol:'ᚦ', name:'Thurisaz', pronunciation:'투리사즈', meaning:'변화의 문 앞에 서 있습니다. 긴장을 늦추지 말고 조심스럽게 앞을 살피세요.', aett:"Freyr's Aett" },
+  { symbol:'ᚨ', name:'Ansuz', pronunciation:'안수즈', meaning:'신의 목소리와 지혜가 흐릅니다. 오늘은 말과 소통, 영감에 귀를 기울이세요.', aett:"Freyr's Aett" },
+  { symbol:'ᚱ', name:'Raidho', pronunciation:'라이도', meaning:'여정과 흐름의 룬입니다. 오늘의 길을 믿고 리듬에 맞춰 나아가세요.', aett:"Freyr's Aett" },
+  { symbol:'ᚲ', name:'Kenaz', pronunciation:'케나즈', meaning:'창조의 불꽃이 타오릅니다. 배움과 기술, 창의적인 일에 집중하기 좋은 날입니다.', aett:"Freyr's Aett" },
+  { symbol:'ᚷ', name:'Gebo', pronunciation:'게보', meaning:'선물과 교환의 룬입니다. 오늘은 관계와 나눔 속에서 균형을 찾으세요.', aett:"Freyr's Aett" },
+  { symbol:'ᚹ', name:'Wunjo', pronunciation:'운조', meaning:'기쁨과 조화의 에너지가 가득합니다. 긍정적인 마음으로 주변과 소통해보세요.', aett:"Freyr's Aett" },
+  { symbol:'ᚺ', name:'Hagalaz', pronunciation:'하갈라즈', meaning:'자연의 힘 앞에 겸손해질 시간입니다. 예기치 못한 변화를 통해 성장이 찾아옵니다.', aett:"Heimdall's Aett" },
+  { symbol:'ᚾ', name:'Nauthiz', pronunciation:'나우티즈', meaning:'필요와 인내를 상징합니다. 제약 안에서 자신의 진정한 힘을 발견하세요.', aett:"Heimdall's Aett" },
+  { symbol:'ᛁ', name:'Isa', pronunciation:'이사', meaning:'정지와 정적의 룬입니다. 서두르지 말고 오늘은 내면을 고요히 들여다보세요.', aett:"Heimdall's Aett" },
+  { symbol:'ᛃ', name:'Jera', pronunciation:'예라', meaning:'수확과 순환의 룬입니다. 꾸준한 노력 끝에 결실이 찾아오고 있습니다.', aett:"Heimdall's Aett" },
+  { symbol:'ᛇ', name:'Eihwaz', pronunciation:'에이와즈', meaning:'강인함과 인내, 죽음과 재생을 상징합니다. 깊은 뿌리가 당신을 지탱하고 있습니다.', aett:"Heimdall's Aett" },
+  { symbol:'ᛈ', name:'Pertho', pronunciation:'페르스로', meaning:'신비와 운명의 룬입니다. 오늘은 숨겨진 것들이 드러날 수 있습니다.', aett:"Heimdall's Aett" },
+  { symbol:'ᛉ', name:'Algiz', pronunciation:'알기즈', meaning:'보호와 수호의 룬입니다. 당신을 지키는 힘이 함께하고 있으니 두려워하지 마세요.', aett:"Heimdall's Aett" },
+  { symbol:'ᛊ', name:'Sowilo', pronunciation:'소윌로', meaning:'태양의 빛과 승리의 에너지입니다. 오늘은 자신감 있게 앞으로 나아갈 때입니다.', aett:"Heimdall's Aett" },
+  { symbol:'ᛏ', name:'Tiwaz', pronunciation:'티와즈', meaning:'정의와 희생의 룬입니다. 올바른 길을 위해 결단력 있게 행동하세요.', aett:"Tyr's Aett" },
+  { symbol:'ᛒ', name:'Berkana', pronunciation:'베르카나', meaning:'성장과 탄생, 치유를 상징합니다. 새로운 시작을 위한 준비가 되어 있습니다.', aett:"Tyr's Aett" },
+  { symbol:'ᛖ', name:'Ehwaz', pronunciation:'에와즈', meaning:'움직임과 파트너십의 룬입니다. 신뢰 속에서 함께 나아가는 힘이 필요합니다.', aett:"Tyr's Aett" },
+  { symbol:'ᛗ', name:'Mannaz', pronunciation:'만나즈', meaning:'인간성과 자아의 룬입니다. 오늘은 자신을 온전히 이해하고 받아들이는 시간입니다.', aett:"Tyr's Aett" },
+  { symbol:'ᛚ', name:'Laguz', pronunciation:'라구즈', meaning:'물과 흐름, 직관의 룬입니다. 감정의 흐름을 따라 자연스럽게 행동하세요.', aett:"Tyr's Aett" },
+  { symbol:'ᛜ', name:'Ingwaz', pronunciation:'잉와즈', meaning:'내면의 성장과 완성의 룬입니다. 지금 이 순간 당신은 이미 충분합니다.', aett:"Tyr's Aett" },
+  { symbol:'ᛟ', name:'Othala', pronunciation:'오살라', meaning:'조상과 유산, 뿌리의 룬입니다. 당신이 온 곳을 기억하며 앞으로 나아가세요.', aett:"Tyr's Aett" },
+  { symbol:'ᛞ', name:'Dagaz', pronunciation:'다가즈', meaning:'여명과 변환의 룬입니다. 어둠이 물러나고 새로운 빛이 시작되는 순간입니다.', aett:"Tyr's Aett" },
+];
+
+const AETT_COLORS = {
+  "Freyr's Aett":    { bg:'#2d1a4a', text:'#c9a4f0', accent:'#a374e0' },
+  "Heimdall's Aett": { bg:'#061828', text:'#8ec8e8', accent:'#4fa8d0' },
+  "Tyr's Aett":      { bg:'#1e0f04', text:'#e0b87a', accent:'#c8843a' },
+};
+
+const canvas = document.getElementById('runeCanvas');
+const ctx = canvas.getContext('2d');
+const N = RUNES.length;
+const SLICE = (Math.PI * 2) / N;
+const CX = 150, CY = 150, R = 148;
+
+function drawWheel(rot) {
+  ctx.clearRect(0, 0, 300, 300);
+  for (let i = 0; i < N; i++) {
+    const sa = rot + i * SLICE, ea = sa + SLICE;
+    const col = AETT_COLORS[RUNES[i].aett];
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    ctx.arc(CX, CY, R, sa, ea);
+    ctx.closePath();
+    ctx.fillStyle = col.bg;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(160,120,255,0.15)';
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+    const mid = sa + SLICE / 2;
+    const tx = CX + R * 0.68 * Math.cos(mid);
+    const ty = CY + R * 0.68 * Math.sin(mid);
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(mid + Math.PI / 2);
+    ctx.fillStyle = col.text;
+    ctx.font = '600 15px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(RUNES[i].symbol, 0, 0);
+    ctx.restore();
+  }
+  ctx.beginPath();
+  ctx.arc(CX, CY, 28, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0514';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(160,120,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+let currentAngle = 0;
+drawWheel(currentAngle);
+
+function easeOut(t) { return 1 - Math.pow(1 - t, 4); }
+
+function spinTo(target, duration, onDone) {
+  const start = performance.now(), from = currentAngle, delta = target - from;
+  function frame(now) {
+    const t = Math.min((now - start) / duration, 1);
+    currentAngle = from + delta * easeOut(t);
+    drawWheel(currentAngle);
+    if (t < 1) requestAnimationFrame(frame);
+    else { currentAngle = target; drawWheel(target); onDone(); }
+  }
+  requestAnimationFrame(frame);
+}
+
+function getSelectedIndex(angle) {
+  const norm = (((-angle) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  return Math.floor(norm / SLICE) % N;
+}
+
+document.getElementById('spinBtn').addEventListener('click', function() {
+  this.disabled = true;
+  const card = document.getElementById('resultCard');
+  card.classList.remove('show');
+  const target = currentAngle - ((5 + Math.floor(Math.random() * 4)) * Math.PI * 2 + Math.random() * Math.PI * 2);
+  spinTo(target, 3000 + Math.random() * 900, () => {
+    const rune = RUNES[getSelectedIndex(currentAngle)];
+    document.getElementById('resSymbol').textContent = rune.symbol;
+    document.getElementById('resSymbol').style.color = AETT_COLORS[rune.aett].accent;
+    document.getElementById('resName').textContent = rune.name;
+    document.getElementById('resPron').textContent = '[ ' + rune.pronunciation + ' ]';
+    document.getElementById('resMeaning').textContent = rune.meaning;
+    document.getElementById('resAett').textContent = rune.aett;
+    setTimeout(() => card.classList.add('show'), 80);
+    this.disabled = false;
+  });
+});
+</script>
